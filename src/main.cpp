@@ -129,6 +129,7 @@ int main()
         start_pos.reset();
         current_pos.reset();
         move_history.clear();
+        result.reset();
         board_state = std::vector(c_board_size * c_board_size, BoardState::empty);
         for (auto [x, y] : barriers) {
             board_state[pos_to_idx({ x, y })] = BoardState::filled;
