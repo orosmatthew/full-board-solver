@@ -65,6 +65,25 @@ struct MoveResult {
     std::optional<GameResult> game_result {};
 };
 
+void undo_move(const MoveRecord& record, Vector2i& current_pos, std::vector<BoardState>& board_state)
+{
+    if (record.to != current_pos) [[unlikely]] {
+        TraceLog(LOG_ERROR, "Invalid undo");
+        return;
+    }
+    const int min_x = std::min(record.from.x, record.to.x);
+    const int max_x = std::max(record.from.x, record.to.x);
+    const int min_y = std::min(record.from.y, record.to.y);
+    const int max_y = std::max(record.from.y, record.to.y);
+    for (int x = min_x; x < max_x + 1; ++x) {
+        for (int y = min_y; y < max_y + 1; ++y) {
+            board_state[pos_to_idx({ x, y })] = BoardState::empty;
+        }
+    }
+    board_state[pos_to_idx(record.from)] = BoardState::filled;
+    current_pos = record.from;
+}
+
 MoveResult move(const Direction dir, Vector2i& current_pos, std::vector<BoardState>& board_state)
 {
     const Vector2i start = current_pos;
@@ -110,6 +129,8 @@ MoveResult move(const Direction dir, Vector2i& current_pos, std::vector<BoardSta
     return result;
 }
 
+enum class GameState { manual, solving };
+
 int main()
 {
     SetConfigFlags(FLAG_VSYNC_HINT);
@@ -124,6 +145,7 @@ int main()
     std::vector board_state(c_board_size * c_board_size, BoardState::empty);
     std::vector<Vector2i> barriers;
     std::optional<GameResult> result;
+    auto state = GameState::manual;
 
     const auto reset = [&] {
         start_pos.reset();
@@ -138,50 +160,59 @@ int main()
 
     while (!window.ShouldClose()) {
 
-        if (IsKeyPressed(KEY_R)) {
-            reset();
-        }
-
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !result.has_value()) {
-            const rl::Vector2 mouse_pos = GetMousePosition();
-            const Vector2i grid_pos = { static_cast<int>(mouse_pos.x / grid_square_size),
-                                        static_cast<int>(mouse_pos.y / grid_square_size) };
-            if (current_pos.has_value()) {
-                if (grid_pos.x == current_pos->x && grid_pos.y != current_pos->y) {
-                    auto [record, game_result] = move(
-                        grid_pos.y > current_pos->y ? Direction::north : Direction::south, *current_pos, board_state);
-                    if (record.has_value()) {
-                        move_history.push_back(*record);
-                    }
-                    result = game_result;
-                }
-                else if (grid_pos.x != current_pos->x && grid_pos.y == current_pos->y) {
-                    auto [record, game_result] = move(
-                        grid_pos.x > current_pos->x ? Direction::east : Direction::west, *current_pos, board_state);
-                    if (record.has_value()) {
-                        move_history.push_back(*record);
-                    }
-                    result = game_result;
-                }
+        if (state == GameState::manual) {
+            if (IsKeyPressed(KEY_R)) {
+                reset();
             }
-            else {
-                start_pos = grid_pos;
-                current_pos = grid_pos;
-                board_state[pos_to_idx(grid_pos)] = BoardState::filled;
-            }
-        }
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !start_pos.has_value()) {
-            const rl::Vector2 mouse_pos = GetMousePosition();
-            if (const Vector2i grid_pos = { static_cast<int>(mouse_pos.x / grid_square_size),
+            if (IsKeyPressed(KEY_U) && !move_history.empty() && current_pos.has_value()) {
+                undo_move(move_history[move_history.size() - 1], *current_pos, board_state);
+                move_history.pop_back();
+            }
+
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !result.has_value()) {
+                const rl::Vector2 mouse_pos = GetMousePosition();
+                const Vector2i grid_pos = { static_cast<int>(mouse_pos.x / grid_square_size),
                                             static_cast<int>(mouse_pos.y / grid_square_size) };
-                std::ranges::find(barriers, grid_pos) == barriers.end()) {
-                barriers.push_back(grid_pos);
-                board_state[pos_to_idx(grid_pos)] = BoardState::filled;
+                if (current_pos.has_value()) {
+                    if (grid_pos.x == current_pos->x && grid_pos.y != current_pos->y) {
+                        auto [record, game_result] = move(
+                            grid_pos.y > current_pos->y ? Direction::north : Direction::south,
+                            *current_pos,
+                            board_state);
+                        if (record.has_value()) {
+                            move_history.push_back(*record);
+                        }
+                        result = game_result;
+                    }
+                    else if (grid_pos.x != current_pos->x && grid_pos.y == current_pos->y) {
+                        auto [record, game_result] = move(
+                            grid_pos.x > current_pos->x ? Direction::east : Direction::west, *current_pos, board_state);
+                        if (record.has_value()) {
+                            move_history.push_back(*record);
+                        }
+                        result = game_result;
+                    }
+                }
+                else {
+                    start_pos = grid_pos;
+                    current_pos = grid_pos;
+                    board_state[pos_to_idx(grid_pos)] = BoardState::filled;
+                }
             }
-            else {
-                std::erase(barriers, grid_pos);
-                board_state[pos_to_idx(grid_pos)] = BoardState::empty;
+
+            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !start_pos.has_value()) {
+                const rl::Vector2 mouse_pos = GetMousePosition();
+                if (const Vector2i grid_pos = { static_cast<int>(mouse_pos.x / grid_square_size),
+                                                static_cast<int>(mouse_pos.y / grid_square_size) };
+                    std::ranges::find(barriers, grid_pos) == barriers.end()) {
+                    barriers.push_back(grid_pos);
+                    board_state[pos_to_idx(grid_pos)] = BoardState::filled;
+                }
+                else {
+                    std::erase(barriers, grid_pos);
+                    board_state[pos_to_idx(grid_pos)] = BoardState::empty;
+                }
             }
         }
 
