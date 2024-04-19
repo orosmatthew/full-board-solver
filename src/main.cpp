@@ -16,6 +16,21 @@ struct Vector2i {
     }
 };
 
+[[maybe_unused]] static std::optional<Direction> next_dir(const Direction dir)
+{
+    switch (dir) {
+    case Direction::north:
+        return Direction::east;
+    case Direction::east:
+        return Direction::south;
+    case Direction::south:
+        return Direction::west;
+    case Direction::west:
+    default:
+        return {};
+    }
+}
+
 constexpr int c_window_width = 800;
 constexpr int c_window_height = 800;
 constexpr int c_board_size = 6;
@@ -37,6 +52,59 @@ static bool in_bounds(const Vector2i pos)
     return pos.x >= 0 && pos.x < c_board_size && pos.y >= 0 && pos.y < c_board_size;
 }
 
+enum class GameResult { won, lost };
+
+struct MoveResult {
+    bool moved;
+    Vector2i new_pos;
+    std::vector<BoardState> new_state;
+    std::optional<GameResult> game_result {};
+};
+
+MoveResult move(const Direction dir, const Vector2i current_pos, const std::vector<BoardState>& board_stat)
+{
+    MoveResult result { .moved = false, .new_pos = current_pos, .new_state = board_stat };
+    const auto inc_y = dir == Direction::north || dir == Direction::south ? dir == Direction::north ? 1 : -1 : 0;
+    const auto inc_x = dir == Direction::east || dir == Direction::west ? dir == Direction::east ? 1 : -1 : 0;
+    while (in_bounds({ current_pos.x + inc_x, current_pos.y + inc_y })
+           && result.new_state[pos_to_idx({ current_pos.x + inc_x, current_pos.y + inc_y })] == BoardState::empty) {
+        result.new_pos = { current_pos.x + inc_x, current_pos.y + inc_y };
+        result.new_state[pos_to_idx({ current_pos.x, current_pos.y })] = BoardState::filled;
+        result.moved = true;
+    }
+    if (result.moved) {
+        bool full = true;
+        for (int i = 0; i < c_board_size * c_board_size; ++i) {
+            if (result.new_state[i] == BoardState::empty) {
+                full = false;
+                break;
+            }
+        }
+        if (full) {
+            result.game_result = GameResult::won;
+            result.new_pos = current_pos;
+            return result;
+        }
+
+        bool trapped = true;
+        for (std::array<Vector2i, 4> neighbor_offsets { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
+             const auto [off_x, off_y] : neighbor_offsets) {
+            if (const Vector2i neighbor_pos { current_pos.x + off_x, current_pos.y + off_y };
+                in_bounds(neighbor_pos) && result.new_state[pos_to_idx(neighbor_pos)] == BoardState::empty) {
+                trapped = false;
+                break;
+            }
+        }
+        if (trapped) {
+            result.game_result = GameResult::lost;
+            result.new_pos = current_pos;
+            return result;
+        }
+    }
+    result.new_pos = current_pos;
+    return result;
+}
+
 int main()
 {
     SetConfigFlags(FLAG_VSYNC_HINT);
@@ -55,12 +123,14 @@ int main()
         start_pos.reset();
         current_pos.reset();
         board_state = std::vector(c_board_size * c_board_size, BoardState::empty);
-        barriers.clear();
+        for (auto [x, y] : barriers) {
+            board_state[pos_to_idx({ x, y })] = BoardState::filled;
+        }
     };
 
     while (!window.ShouldClose()) {
 
-        auto move = [&](const Direction dir) {
+        auto move = [&](const Direction dir) -> bool {
             const auto inc_y
                 = dir == Direction::north || dir == Direction::south ? dir == Direction::north ? 1 : -1 : 0;
             const auto inc_x = dir == Direction::east || dir == Direction::west ? dir == Direction::east ? 1 : -1 : 0;
@@ -85,7 +155,7 @@ int main()
                     }
                 }
                 if (trapped) {
-                    reset();
+                    return false;
                 }
 
                 bool full = true;
@@ -96,9 +166,10 @@ int main()
                     }
                 }
                 if (full) {
-                    reset();
+                    return false;
                 }
             }
+            return true;
         };
 
         if (IsKeyPressed(KEY_R)) {
@@ -111,10 +182,14 @@ int main()
                                         static_cast<int>(mouse_pos.y / grid_square_size) };
             if (current_pos.has_value()) {
                 if (grid_pos.x == current_pos->x && grid_pos.y != current_pos->y) {
-                    move(grid_pos.y > current_pos->y ? Direction::north : Direction::south);
+                    if (!move(grid_pos.y > current_pos->y ? Direction::north : Direction::south)) {
+                        reset();
+                    }
                 }
                 else if (grid_pos.x != current_pos->x && grid_pos.y == current_pos->y) {
-                    move(grid_pos.x > current_pos->x ? Direction::east : Direction::west);
+                    if (!move(grid_pos.x > current_pos->x ? Direction::east : Direction::west)) {
+                        reset();
+                    }
                 }
             }
             else {
