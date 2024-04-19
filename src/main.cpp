@@ -54,35 +54,42 @@ static bool in_bounds(const Vector2i pos)
 
 enum class GameResult { won, lost };
 
+struct MoveRecord {
+    Direction dir;
+    Vector2i from;
+    Vector2i to;
+};
+
 struct MoveResult {
-    bool moved;
-    Vector2i new_pos;
-    std::vector<BoardState> new_state;
+    std::optional<MoveRecord> record {};
     std::optional<GameResult> game_result {};
 };
 
-MoveResult move(const Direction dir, const Vector2i current_pos, const std::vector<BoardState>& board_stat)
+MoveResult move(const Direction dir, Vector2i& current_pos, std::vector<BoardState>& board_state)
 {
-    MoveResult result { .moved = false, .new_pos = current_pos, .new_state = board_stat };
+    const Vector2i start = current_pos;
+    MoveResult result;
+    bool moved = false;
     const auto inc_y = dir == Direction::north || dir == Direction::south ? dir == Direction::north ? 1 : -1 : 0;
     const auto inc_x = dir == Direction::east || dir == Direction::west ? dir == Direction::east ? 1 : -1 : 0;
     while (in_bounds({ current_pos.x + inc_x, current_pos.y + inc_y })
-           && result.new_state[pos_to_idx({ current_pos.x + inc_x, current_pos.y + inc_y })] == BoardState::empty) {
-        result.new_pos = { current_pos.x + inc_x, current_pos.y + inc_y };
-        result.new_state[pos_to_idx({ current_pos.x, current_pos.y })] = BoardState::filled;
-        result.moved = true;
+           && board_state[pos_to_idx({ current_pos.x + inc_x, current_pos.y + inc_y })] == BoardState::empty) {
+        current_pos = { current_pos.x + inc_x, current_pos.y + inc_y };
+        board_state[pos_to_idx({ current_pos.x, current_pos.y })] = BoardState::filled;
+        moved = true;
     }
-    if (result.moved) {
+    if (moved) {
+        result.record = MoveRecord { .dir = dir, .from = start, .to = current_pos };
+
         bool full = true;
         for (int i = 0; i < c_board_size * c_board_size; ++i) {
-            if (result.new_state[i] == BoardState::empty) {
+            if (board_state[i] == BoardState::empty) {
                 full = false;
                 break;
             }
         }
         if (full) {
             result.game_result = GameResult::won;
-            result.new_pos = current_pos;
             return result;
         }
 
@@ -90,18 +97,16 @@ MoveResult move(const Direction dir, const Vector2i current_pos, const std::vect
         for (std::array<Vector2i, 4> neighbor_offsets { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
              const auto [off_x, off_y] : neighbor_offsets) {
             if (const Vector2i neighbor_pos { current_pos.x + off_x, current_pos.y + off_y };
-                in_bounds(neighbor_pos) && result.new_state[pos_to_idx(neighbor_pos)] == BoardState::empty) {
+                in_bounds(neighbor_pos) && board_state[pos_to_idx(neighbor_pos)] == BoardState::empty) {
                 trapped = false;
                 break;
             }
         }
         if (trapped) {
             result.game_result = GameResult::lost;
-            result.new_pos = current_pos;
             return result;
         }
     }
-    result.new_pos = current_pos;
     return result;
 }
 
@@ -115,13 +120,15 @@ int main()
     constexpr int grid_square_size = c_window_width / c_board_size;
     std::optional<Vector2i> start_pos;
     std::optional<Vector2i> current_pos;
-    std::vector<Direction> move_history;
+    std::vector<MoveRecord> move_history;
     std::vector board_state(c_board_size * c_board_size, BoardState::empty);
     std::vector<Vector2i> barriers;
+    std::optional<GameResult> result;
 
     const auto reset = [&] {
         start_pos.reset();
         current_pos.reset();
+        move_history.clear();
         board_state = std::vector(c_board_size * c_board_size, BoardState::empty);
         for (auto [x, y] : barriers) {
             board_state[pos_to_idx({ x, y })] = BoardState::filled;
@@ -129,48 +136,6 @@ int main()
     };
 
     while (!window.ShouldClose()) {
-
-        auto move = [&](const Direction dir) -> bool {
-            const auto inc_y
-                = dir == Direction::north || dir == Direction::south ? dir == Direction::north ? 1 : -1 : 0;
-            const auto inc_x = dir == Direction::east || dir == Direction::west ? dir == Direction::east ? 1 : -1 : 0;
-            bool moved = false;
-            while (in_bounds({ current_pos->x + inc_x, current_pos->y + inc_y })
-                   && board_state[pos_to_idx({ current_pos->x + inc_x, current_pos->y + inc_y })]
-                       == BoardState::empty) {
-                current_pos = { current_pos->x + inc_x, current_pos->y + inc_y };
-                board_state[pos_to_idx({ current_pos->x, current_pos->y })] = BoardState::filled;
-                moved = true;
-            }
-            if (moved) {
-                move_history.push_back(dir);
-
-                bool trapped = true;
-                for (std::array<Vector2i, 4> neighbor_offsets { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
-                     const auto [off_x, off_y] : neighbor_offsets) {
-                    if (const Vector2i neighbor_pos { current_pos->x + off_x, current_pos->y + off_y };
-                        in_bounds(neighbor_pos) && board_state[pos_to_idx(neighbor_pos)] == BoardState::empty) {
-                        trapped = false;
-                        break;
-                    }
-                }
-                if (trapped) {
-                    return false;
-                }
-
-                bool full = true;
-                for (int i = 0; i < c_board_size * c_board_size; ++i) {
-                    if (board_state[i] == BoardState::empty) {
-                        full = false;
-                        break;
-                    }
-                }
-                if (full) {
-                    return false;
-                }
-            }
-            return true;
-        };
 
         if (IsKeyPressed(KEY_R)) {
             reset();
@@ -182,14 +147,20 @@ int main()
                                         static_cast<int>(mouse_pos.y / grid_square_size) };
             if (current_pos.has_value()) {
                 if (grid_pos.x == current_pos->x && grid_pos.y != current_pos->y) {
-                    if (!move(grid_pos.y > current_pos->y ? Direction::north : Direction::south)) {
-                        reset();
+                    auto [record, game_result] = move(
+                        grid_pos.y > current_pos->y ? Direction::north : Direction::south, *current_pos, board_state);
+                    if (record.has_value()) {
+                        move_history.push_back(*record);
                     }
+                    result = game_result;
                 }
                 else if (grid_pos.x != current_pos->x && grid_pos.y == current_pos->y) {
-                    if (!move(grid_pos.x > current_pos->x ? Direction::east : Direction::west)) {
-                        reset();
+                    auto [record, game_result] = move(
+                        grid_pos.x > current_pos->x ? Direction::east : Direction::west, *current_pos, board_state);
+                    if (record.has_value()) {
+                        move_history.push_back(*record);
                     }
+                    result = game_result;
                 }
             }
             else {
@@ -227,10 +198,19 @@ int main()
                     DrawCircle(
                         grid_square_size / 2 + x * grid_square_size,
                         grid_square_size / 2 + y * grid_square_size,
-                        static_cast<float>(square_size_px) / 4,
-                        GRAY);
+                        static_cast<float>(square_size_px) / 2,
+                        result.has_value() ? result.value() == GameResult::won ? DARKGREEN : RED : GRAY);
                 }
             }
+        }
+        for (auto [dir, from, to] : move_history) {
+            DrawLineEx(
+                { grid_square_size / 2.0f + static_cast<float>(from.x) * grid_square_size,
+                  grid_square_size / 2.0f + static_cast<float>(from.y) * grid_square_size },
+                { grid_square_size / 2.0f + static_cast<float>(to.x) * grid_square_size,
+                  grid_square_size / 2.0f + static_cast<float>(to.y) * grid_square_size },
+                5.0f,
+                BLUE);
         }
         for (const auto [x, y] : barriers) {
             DrawCircle(
