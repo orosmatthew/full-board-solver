@@ -1,10 +1,44 @@
+#include <array>
 #include <optional>
+
 #include <raylib-cpp.hpp>
 
 namespace rl = raylib;
 
 enum class Direction { north, east, south, west };
 enum class BoardState { empty, filled };
+
+static int dir_idx(const Direction dir)
+{
+    switch (dir) {
+    case Direction::north:
+        return 0;
+    case Direction::east:
+        return 1;
+    case Direction::south:
+        return 2;
+    case Direction::west:
+        return 3;
+    default:
+        return 0;
+    }
+}
+
+static Direction idx_dir(const int idx)
+{
+    switch (idx) {
+    case 0:
+        return Direction::north;
+    case 1:
+        return Direction::east;
+    case 2:
+        return Direction::south;
+    case 3:
+        return Direction::west;
+    default:
+        return Direction::north;
+    }
+}
 
 struct Vector2i {
     int x;
@@ -25,7 +59,6 @@ struct Vector2i {
         return Direction::south;
     case Direction::south:
         return Direction::west;
-    case Direction::west:
     default:
         return {};
     }
@@ -35,7 +68,7 @@ constexpr int c_window_width = 800;
 constexpr int c_window_height = 800;
 constexpr int c_board_size = 6;
 
-static size_t pos_to_idx(const Vector2i pos)
+static int pos_to_idx(const Vector2i pos)
 {
     return pos.y * c_board_size + pos.x;
 }
@@ -65,7 +98,7 @@ struct MoveResult {
     std::optional<GameResult> game_result {};
 };
 
-void undo_move(const MoveRecord& record, Vector2i& current_pos, std::vector<BoardState>& board_state)
+static void undo_move(const MoveRecord& record, Vector2i& current_pos, std::vector<BoardState>& board_state)
 {
     if (record.to != current_pos) [[unlikely]] {
         TraceLog(LOG_ERROR, "Invalid undo");
@@ -84,12 +117,12 @@ void undo_move(const MoveRecord& record, Vector2i& current_pos, std::vector<Boar
     current_pos = record.from;
 }
 
-MoveResult move(const Direction dir, Vector2i& current_pos, std::vector<BoardState>& board_state)
+static MoveResult move(const Direction dir, Vector2i& current_pos, std::vector<BoardState>& board_state)
 {
     const Vector2i start = current_pos;
     MoveResult result;
     bool moved = false;
-    const auto inc_y = dir == Direction::north || dir == Direction::south ? dir == Direction::north ? 1 : -1 : 0;
+    const auto inc_y = dir == Direction::north || dir == Direction::south ? dir == Direction::north ? -1 : 1 : 0;
     const auto inc_x = dir == Direction::east || dir == Direction::west ? dir == Direction::east ? 1 : -1 : 0;
     while (in_bounds({ current_pos.x + inc_x, current_pos.y + inc_y })
            && board_state[pos_to_idx({ current_pos.x + inc_x, current_pos.y + inc_y })] == BoardState::empty) {
@@ -127,6 +160,48 @@ MoveResult move(const Direction dir, Vector2i& current_pos, std::vector<BoardSta
         }
     }
     return result;
+}
+
+static std::optional<GameResult> solve_step(
+    Vector2i& current_pos, std::vector<MoveRecord>& history, std::vector<BoardState>& board_state)
+{
+    auto undo = [&] {
+        if (history.empty()) {
+            return false;
+        }
+        undo_move(history[history.size() - 1], current_pos, board_state);
+        history.pop_back();
+        return true;
+    };
+
+    std::optional<GameResult> result;
+    auto try_move = [&](const Direction dir) -> bool {
+        const auto [record, game_result] = move(dir, current_pos, board_state);
+        result = game_result;
+        if (record.has_value()) {
+            history.push_back(*record);
+            return true;
+        }
+        return false;
+    };
+
+    auto start = Direction::north;
+    while (true) {
+        for (int i = dir_idx(start); i < 4; ++i) {
+            if (try_move(idx_dir(i))) {
+                return result;
+            }
+        }
+        std::optional<Direction> next;
+        do {
+            const Direction last = history[history.size() - 1].dir;
+            if (!undo()) {
+                return result;
+            }
+            next = next_dir(last);
+        } while (!next.has_value());
+        start = *next;
+    }
 }
 
 enum class GameState { manual, solving };
@@ -177,7 +252,7 @@ int main()
                 if (current_pos.has_value()) {
                     if (grid_pos.x == current_pos->x && grid_pos.y != current_pos->y) {
                         auto [record, game_result] = move(
-                            grid_pos.y > current_pos->y ? Direction::north : Direction::south,
+                            grid_pos.y > current_pos->y ? Direction::south : Direction::north,
                             *current_pos,
                             board_state);
                         if (record.has_value()) {
@@ -213,6 +288,47 @@ int main()
                     std::erase(barriers, grid_pos);
                     board_state[pos_to_idx(grid_pos)] = BoardState::empty;
                 }
+            }
+            if (IsKeyPressed(KEY_S) && current_pos.has_value()) {
+                result = solve_step(*current_pos, move_history, board_state);
+            }
+            if (IsKeyPressed(KEY_A)) {
+                state = GameState::solving;
+            }
+        }
+        else {
+            auto next_pos = [&](const Vector2i prev) {
+                int i = pos_to_idx(prev);
+                while (i < c_board_size * c_board_size) {
+                    i++;
+                    if (std::ranges::find(barriers, idx_to_pos(i)) == barriers.end()) {
+                        break;
+                    }
+                }
+                return idx_to_pos(i);
+            };
+            if (!start_pos.has_value()) {
+                const Vector2i next = next_pos(idx_to_pos(-1));
+                start_pos = next;
+                current_pos = next;
+                board_state[pos_to_idx(next)] = BoardState::filled;
+            }
+            result = solve_step(*current_pos, move_history, board_state);
+            if (move_history.empty()) {
+                int i = pos_to_idx(start_pos.value());
+                reset();
+                if (i >= c_board_size * c_board_size) {
+                    state = GameState::manual;
+                }
+                else {
+                    const Vector2i next = next_pos(*start_pos);
+                    start_pos = next;
+                    current_pos = next;
+                    board_state[pos_to_idx(next)] = BoardState::filled;
+                }
+            }
+            if (IsKeyPressed(KEY_A) || (result.has_value() && result.value() == GameResult::won)) {
+                state = GameState::manual;
             }
         }
 
