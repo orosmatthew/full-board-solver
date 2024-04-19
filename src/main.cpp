@@ -141,7 +141,7 @@ int main()
             reset();
         }
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !result.has_value()) {
             const rl::Vector2 mouse_pos = GetMousePosition();
             const Vector2i grid_pos = { static_cast<int>(mouse_pos.x / grid_square_size),
                                         static_cast<int>(mouse_pos.y / grid_square_size) };
