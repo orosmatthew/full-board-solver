@@ -184,6 +184,13 @@ private:
         if (IsKeyPressed(KEY_A)) {
             m_state = GameState::solving;
         }
+
+        if (IsKeyPressed(KEY_UP)) {
+            set_game_size(m_game.size() + 1);
+        }
+        else if (IsKeyPressed(KEY_DOWN)) {
+            set_game_size(m_game.size() - 1);
+        }
     }
 
     void update_solving()
@@ -218,6 +225,15 @@ private:
         if (IsKeyPressed(KEY_A)
             || (m_game.result().has_value() && m_game.result().value() == FullBoardGame::Result::won)) {
             m_state = GameState::manual;
+        }
+    }
+
+    void set_game_size(int new_size)
+    {
+        if (m_state == GameState::manual) {
+            new_size = std::clamp(new_size, 1, 20);
+            m_game = FullBoardGame(new_size);
+            m_board_sizes = calc_board_sizes();
         }
     }
 
