@@ -11,7 +11,7 @@ class App {
 public:
     App()
         : m_window(600, 600, "Full Board Solver")
-        , m_game(9)
+        , m_game(5)
         , m_board_sizes(calc_board_sizes())
         , m_state(GameState::manual)
     {
