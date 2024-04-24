@@ -85,7 +85,7 @@ public:
 
     void set_start(Vector2i pos)
     {
-        if (m_history.empty()) {
+        if (m_history.empty() && !is_barrier(pos)) {
             m_start_pos = pos;
             m_current_pos = pos;
             m_state[pos_to_idx(pos)] = BoardState::filled;
