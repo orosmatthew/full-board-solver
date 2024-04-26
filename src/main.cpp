@@ -14,7 +14,8 @@ static std::unique_ptr<App> g_app;
 
 int main()
 {
-    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
+    SetTargetFPS(60);
     g_app = std::make_unique<App>();
 
 #ifdef PLATFORM_WEB

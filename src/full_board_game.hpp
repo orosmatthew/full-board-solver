@@ -73,6 +73,11 @@ public:
         return m_result;
     }
 
+    [[nodiscard]] bool won() const
+    {
+        return m_result.has_value() && m_result.value() == Result::won;
+    }
+
     [[nodiscard]] std::optional<Vector2i> current_pos() const
     {
         return m_current_pos;
@@ -181,7 +186,8 @@ public:
         m_current_pos.reset();
         m_history.clear();
         m_result.reset();
-        m_state = std::vector(m_size * m_size, BoardState::empty);
+        m_state.clear();
+        m_state.resize(m_size * m_size, BoardState::empty);
         for (auto [x, y] : m_barriers) {
             m_state[pos_to_idx({ x, y })] = BoardState::filled;
         }

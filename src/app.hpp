@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include <raylib-cpp.hpp>
 
 #include "common.hpp"
@@ -210,18 +212,23 @@ private:
             const Vector2i next = next_pos(m_game.idx_to_pos(-1));
             m_game.set_start(next);
         }
-        solve_step(m_game);
-        if (m_game.move_history().empty()) {
-            const int i = m_game.pos_to_idx(m_game.start_pos().value());
-            m_game.reset_leave_barriers();
-            if (i >= m_game.size() * m_game.size()) {
-                m_state = GameState::manual;
+        const auto start_time = std::chrono::steady_clock::now();
+        const auto target_time = start_time + std::chrono::milliseconds(16);
+        do {
+            solve_step(m_game);
+            if (m_game.move_history().empty()) {
+                const int i = m_game.pos_to_idx(m_game.start_pos().value());
+                m_game.reset_leave_barriers();
+                if (i >= m_game.size() * m_game.size()) {
+                    m_state = GameState::manual;
+                }
+                else {
+                    const Vector2i next = next_pos(*m_game.start_pos());
+                    m_game.set_start(next);
+                }
             }
-            else {
-                const Vector2i next = next_pos(*m_game.start_pos());
-                m_game.set_start(next);
-            }
-        }
+        } while (!m_game.won() && m_game.start_pos().has_value() && std::chrono::steady_clock::now() < target_time);
+
         if (IsKeyPressed(KEY_A)
             || (m_game.result().has_value() && m_game.result().value() == FullBoardGame::Result::won)) {
             m_state = GameState::manual;
@@ -231,7 +238,7 @@ private:
     void set_game_size(int new_size)
     {
         if (m_state == GameState::manual) {
-            new_size = std::clamp(new_size, 1, 20);
+            new_size = std::clamp(new_size, 1, 100);
             m_game = FullBoardGame(new_size);
             m_board_sizes = calc_board_sizes();
         }
