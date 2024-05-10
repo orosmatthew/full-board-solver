@@ -8,8 +8,7 @@ static std::unique_ptr<App> g_app;
 
 [[maybe_unused]] static void update()
 {
-    g_app->update();
-    g_app->draw();
+    g_app->update_and_draw();
 }
 
 int main()

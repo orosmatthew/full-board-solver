@@ -180,6 +180,17 @@ public:
         set_barrier(pos, !is_barrier(pos));
     }
 
+    void reset()
+    {
+        m_start_pos.reset();
+        m_current_pos.reset();
+        m_history.clear();
+        m_result.reset();
+        m_state.clear();
+        m_state.resize(m_size * m_size, BoardState::empty);
+        m_barriers.clear();
+    }
+
     void reset_leave_barriers()
     {
         m_start_pos.reset();

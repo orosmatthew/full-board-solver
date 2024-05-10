@@ -7,6 +7,7 @@
 
 #include "common.hpp"
 #include "full_board_solver.hpp"
+#include "res/roboto-regular.h"
 
 enum class GameState { manual, solving };
 
@@ -18,6 +19,16 @@ public:
         , m_board_sizes(calc_board_sizes())
         , m_state(GameState::manual)
     {
+        constexpr int font_size = 16;
+        m_ui_font = LoadFontFromMemory(
+            ".ttf",
+            font_robot_regular_ttf_bin,
+            static_cast<int>(font_robot_regular_ttf_bin_size),
+            font_size,
+            nullptr,
+            0);
+        GuiSetFont(m_ui_font);
+        GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
     }
 
     [[nodiscard]] bool should_close() const
@@ -25,21 +36,10 @@ public:
         return m_window.ShouldClose();
     }
 
-    void update()
+    void update_and_draw()
     {
-        if (IsWindowResized()) {
-            m_board_sizes = calc_board_sizes();
-        }
-        if (m_state == GameState::manual) {
-            update_manual();
-        }
-        else {
-            update_solving();
-        }
-    }
+        update_game();
 
-    void draw() const
-    {
         BeginDrawing();
         ClearBackground(LIGHTGRAY);
         draw_background();
@@ -51,7 +51,7 @@ public:
         if (m_game.current_pos().has_value()) {
             draw_current_pos_circle();
         }
-        draw_ui();
+        draw_and_update_ui();
         EndDrawing();
     }
 
@@ -63,6 +63,19 @@ private:
         float inner_square;
         Rectangle board_rect;
     };
+
+    void update_game()
+    {
+        if (IsWindowResized()) {
+            m_board_sizes = calc_board_sizes();
+        }
+        if (m_state == GameState::manual) {
+            update_manual();
+        }
+        else {
+            update_solving();
+        }
+    }
 
     void draw_background_square(const int x, const int y) const
     {
@@ -166,11 +179,12 @@ private:
 
     [[nodiscard]] BoardSizes calc_board_sizes() const
     {
+        constexpr int top_margin = 100;
         const Vector2i screen_size { GetScreenWidth(), GetScreenHeight() };
-        const auto min_size = static_cast<float>(std::min(screen_size.x, std::max(1, screen_size.y - 100)));
+        const auto min_size = static_cast<float>(std::min(screen_size.x, std::max(1, screen_size.y - top_margin)));
         BoardSizes sizes {};
         sizes.offset.x = (static_cast<float>(screen_size.x) - min_size) / 2.0f;
-        sizes.offset.y = 100.0f;
+        sizes.offset.y = static_cast<float>(top_margin);
         sizes.grid_square = min_size / static_cast<float>(m_game.size());
         sizes.square_padding = 0.05f * sizes.grid_square;
         sizes.inner_square = min_size / static_cast<float>(m_game.size()) - 2 * sizes.square_padding;
@@ -216,14 +230,51 @@ private:
         }
     }
 
-    void draw_ui() const
+    void draw_and_update_ui()
     {
-        GuiButton({ 10.0f, 10.0f, 50.0f, 20.0f }, "Restart");
+        const RVector2 button_size { 80.0f, 30.0f };
+        constexpr float ui_padding = 10.0f;
+        float x_offset = ui_padding;
+        float y_offset = ui_padding;
+        const auto next_button = [&](const std::string& text, const std::optional<float> width = std::nullopt) -> bool {
+            bool pressed = false;
+            if (GuiButton(
+                    { x_offset, y_offset, width.has_value() ? *width : button_size.x, button_size.y }, text.c_str())) {
+                pressed = true;
+            }
+            x_offset += button_size.x + ui_padding;
+            return pressed;
+        };
+
+        if (next_button("[C] Clear")) {
+            m_game.reset();
+        }
+        if (next_button("[R] Restart")) {
+            m_game.reset_leave_barriers();
+        }
+        if (next_button("[U] Undo")) {
+            m_game.undo();
+        }
+        x_offset += 20.0f;
+        if (next_button("#120# Size")) {
+            set_game_size(m_game.size() - 1);
+        }
+        if (next_button("#121# Size")) {
+            set_game_size(m_game.size() + 1);
+        }
+        x_offset = ui_padding;
+        y_offset += button_size.y + ui_padding;
+        if (next_button("[Q] Quick Solve", 120.0f)) {
+            m_state = GameState::solving;
+        }
     }
 
     void update_manual()
     {
-        if (IsKeyPressed(KEY_R)) {
+        if (IsKeyPressed(KEY_C)) {
+            m_game.reset();
+        }
+        else if (IsKeyPressed(KEY_R)) {
             m_game.reset_leave_barriers();
         }
 
@@ -244,7 +295,7 @@ private:
         if (IsKeyPressed(KEY_S) && m_game.current_pos().has_value()) {
             solve_step(m_game);
         }
-        if (IsKeyPressed(KEY_A)) {
+        if (IsKeyPressed(KEY_Q)) {
             m_state = GameState::solving;
         }
 
@@ -306,7 +357,8 @@ private:
     }
 
     static constexpr Vector2i c_init_window_size = { 800, 800 };
-    raylib::Window m_window;
+    RWindow m_window;
+    RFont m_ui_font;
     FullBoardGame m_game;
     BoardSizes m_board_sizes;
     GameState m_state;
