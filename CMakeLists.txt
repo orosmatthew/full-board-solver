@@ -17,7 +17,9 @@ if (EMSCRIPTEN)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
 endif ()
 
-add_executable(full_board_solver src/main.cpp)
+add_executable(full_board_solver
+        src/main.cpp
+        src/raygui.c)
 target_include_directories(full_board_solver SYSTEM PRIVATE
         external/thread-pool-4.0.1/include
         external/raygui-4.0/include)

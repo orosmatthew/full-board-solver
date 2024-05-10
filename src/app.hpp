@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+#include <raygui.h>
 #include <raylib-cpp.hpp>
 
 #include "common.hpp"
@@ -50,6 +51,7 @@ public:
         if (m_game.current_pos().has_value()) {
             draw_current_pos_circle();
         }
+        draw_ui();
         EndDrawing();
     }
 
@@ -59,6 +61,7 @@ private:
         float grid_square;
         float square_padding;
         float inner_square;
+        Rectangle board_rect;
     };
 
     void draw_background_square(const int x, const int y) const
@@ -171,12 +174,16 @@ private:
         sizes.grid_square = min_size / static_cast<float>(m_game.size());
         sizes.square_padding = 0.05f * sizes.grid_square;
         sizes.inner_square = min_size / static_cast<float>(m_game.size()) - 2 * sizes.square_padding;
+        sizes.board_rect = Rectangle { sizes.offset.x, sizes.offset.y, min_size, min_size };
         return sizes;
     }
 
     [[nodiscard]] std::optional<Vector2i> mouse_to_grid() const
     {
         const raylib::Vector2 mouse_pos = GetMousePosition();
+        if (!CheckCollisionPointRec(mouse_pos, m_board_sizes.board_rect)) {
+            return std::nullopt;
+        }
         if (const Vector2i grid_pos
             = { static_cast<int>((mouse_pos.x - m_board_sizes.offset.x) / m_board_sizes.grid_square),
                 static_cast<int>((mouse_pos.y - m_board_sizes.offset.y) / m_board_sizes.grid_square) };
@@ -207,6 +214,11 @@ private:
                 m_game.set_start(*grid_pos);
             }
         }
+    }
+
+    void draw_ui() const
+    {
+        GuiButton({ 10.0f, 10.0f, 50.0f, 20.0f }, "Restart");
     }
 
     void update_manual()
