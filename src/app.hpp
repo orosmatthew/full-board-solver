@@ -41,89 +41,133 @@ public:
     {
         BeginDrawing();
         ClearBackground(LIGHTGRAY);
-        for (int x = 0; x < m_game.size(); ++x) {
-            for (int y = 0; y < m_game.size(); ++y) {
-                DrawRectangle(
-                    static_cast<int>(
-                        m_board_sizes.x_offset + m_board_sizes.square_padding
-                        + static_cast<float>(x) * m_board_sizes.grid_square),
-                    static_cast<int>(m_board_sizes.square_padding + static_cast<float>(y) * m_board_sizes.grid_square),
-                    static_cast<int>(m_board_sizes.inner_square),
-                    static_cast<int>(m_board_sizes.inner_square),
-                    raylib::Color(168, 168, 168));
-                if (m_game.filled_at({ x, y })) {
-                    DrawCircle(
-                        static_cast<int>(
-                            m_board_sizes.x_offset + m_board_sizes.grid_square / 2
-                            + static_cast<float>(x) * m_board_sizes.grid_square),
-                        static_cast<int>(
-                            m_board_sizes.grid_square / 2 + static_cast<float>(y) * m_board_sizes.grid_square),
-                        m_board_sizes.inner_square / 2,
-                        m_game.result().has_value()
-                            ? m_game.result().value() == FullBoardGame::Result::won ? DARKGREEN : RED
-                            : GRAY);
-                }
-            }
-        }
-        for (auto [dir, from, to] : m_game.move_history()) {
-            DrawLineEx(
-                { m_board_sizes.x_offset + m_board_sizes.grid_square / 2.0f
-                      + static_cast<float>(from.x) * m_board_sizes.grid_square,
-                  m_board_sizes.grid_square / 2.0f + static_cast<float>(from.y) * m_board_sizes.grid_square },
-                { m_board_sizes.x_offset + m_board_sizes.grid_square / 2.0f
-                      + static_cast<float>(to.x) * m_board_sizes.grid_square,
-                  m_board_sizes.grid_square / 2.0f + static_cast<float>(to.y) * m_board_sizes.grid_square },
-                5.0f,
-                BLUE);
-        }
-        for (const auto [x, y] : m_game.barrier_positions()) {
-            DrawCircle(
-                static_cast<int>(
-                    m_board_sizes.x_offset + m_board_sizes.grid_square / 2
-                    + static_cast<float>(x) * m_board_sizes.grid_square),
-                static_cast<int>(m_board_sizes.grid_square / 2 + static_cast<float>(y) * m_board_sizes.grid_square),
-                m_board_sizes.inner_square / 2,
-                BLACK);
-        }
+        draw_background();
+        draw_history_lines();
+        draw_barriers();
         if (m_game.start_pos().has_value()) {
-            DrawCircle(
-                static_cast<int>(
-                    m_board_sizes.x_offset + m_board_sizes.grid_square / 2
-                    + static_cast<float>(m_game.start_pos()->x) * m_board_sizes.grid_square),
-                static_cast<int>(
-                    m_board_sizes.grid_square / 2
-                    + static_cast<float>(m_game.start_pos()->y) * m_board_sizes.grid_square),
-                m_board_sizes.inner_square / 4,
-                BLUE);
+            draw_start_circle();
         }
         if (m_game.current_pos().has_value()) {
-            DrawCircle(
-                static_cast<int>(
-                    m_board_sizes.x_offset + m_board_sizes.grid_square / 2
-                    + static_cast<float>(m_game.current_pos()->x) * m_board_sizes.grid_square),
-                static_cast<int>(
-                    m_board_sizes.grid_square / 2
-                    + static_cast<float>(m_game.current_pos()->y) * m_board_sizes.grid_square),
-                m_board_sizes.inner_square / 2,
-                BLUE);
+            draw_current_pos_circle();
         }
         EndDrawing();
     }
 
 private:
     struct BoardSizes {
-        float x_offset;
+        Vector2 offset;
         float grid_square;
         float square_padding;
         float inner_square;
     };
 
+    void draw_background_square(const int x, const int y) const
+    {
+        const Vector2i rect_pos { static_cast<int>(
+                                      m_board_sizes.offset.x + m_board_sizes.square_padding
+                                      + static_cast<float>(x) * m_board_sizes.grid_square),
+                                  static_cast<int>(
+                                      m_board_sizes.offset.y + m_board_sizes.square_padding
+                                      + static_cast<float>(y) * m_board_sizes.grid_square) };
+        const int rect_size = static_cast<int>(m_board_sizes.inner_square);
+        DrawRectangle(rect_pos.x, rect_pos.y, rect_size, rect_size, raylib::Color(168, 168, 168));
+    }
+
+    void draw_filled_circle(const int x, const int y) const
+    {
+        const Vector2i circle_pos {
+            static_cast<int>(
+                m_board_sizes.offset.x + m_board_sizes.grid_square / 2
+                + static_cast<float>(x) * m_board_sizes.grid_square),
+            static_cast<int>(
+                m_board_sizes.offset.y + m_board_sizes.grid_square / 2
+                + static_cast<float>(y) * m_board_sizes.grid_square)
+        };
+        const float circle_radius = m_board_sizes.inner_square / 2;
+        const Color circle_color = m_game.result().has_value()
+            ? m_game.result().value() == FullBoardGame::Result::won ? DARKGREEN : RED
+            : GRAY;
+        DrawCircle(circle_pos.x, circle_pos.y, circle_radius, circle_color);
+    }
+
+    void draw_background() const
+    {
+        for (int x = 0; x < m_game.size(); ++x) {
+            for (int y = 0; y < m_game.size(); ++y) {
+                draw_background_square(x, y);
+                if (m_game.filled_at({ x, y })) {
+                    draw_filled_circle(x, y);
+                }
+            }
+        }
+    }
+
+    void draw_history_lines() const
+    {
+        for (auto [dir, from, to] : m_game.move_history()) {
+            const Vector2 start { m_board_sizes.offset.x + m_board_sizes.grid_square / 2.0f
+                                      + static_cast<float>(from.x) * m_board_sizes.grid_square,
+                                  m_board_sizes.offset.y + m_board_sizes.grid_square / 2.0f
+                                      + static_cast<float>(from.y) * m_board_sizes.grid_square };
+            const Vector2 end { m_board_sizes.offset.x + m_board_sizes.grid_square / 2.0f
+                                    + static_cast<float>(to.x) * m_board_sizes.grid_square,
+                                m_board_sizes.offset.y + m_board_sizes.grid_square / 2.0f
+                                    + static_cast<float>(to.y) * m_board_sizes.grid_square };
+            DrawLineEx(start, end, 5.0f, BLUE);
+        }
+    }
+
+    void draw_barriers() const
+    {
+        for (const auto [x, y] : m_game.barrier_positions()) {
+            const Vector2i circle_pos {
+                static_cast<int>(
+                    m_board_sizes.offset.x + m_board_sizes.grid_square / 2
+                    + static_cast<float>(x) * m_board_sizes.grid_square),
+                static_cast<int>(
+                    m_board_sizes.offset.y + m_board_sizes.grid_square / 2
+                    + static_cast<float>(y) * m_board_sizes.grid_square)
+            };
+            const float circle_radius = m_board_sizes.inner_square / 2;
+            DrawCircle(circle_pos.x, circle_pos.y, circle_radius, BLACK);
+        }
+    }
+
+    void draw_start_circle() const
+    {
+        const Vector2i circle_pos {
+            static_cast<int>(
+                m_board_sizes.offset.x + m_board_sizes.grid_square / 2
+                + static_cast<float>(m_game.start_pos()->x) * m_board_sizes.grid_square),
+            static_cast<int>(
+                m_board_sizes.offset.y + m_board_sizes.grid_square / 2
+                + static_cast<float>(m_game.start_pos()->y) * m_board_sizes.grid_square)
+        };
+        const float circle_radius = m_board_sizes.inner_square / 4;
+        DrawCircle(circle_pos.x, circle_pos.y, circle_radius, BLUE);
+    }
+
+    void draw_current_pos_circle() const
+    {
+        const Vector2i circle_pos {
+            static_cast<int>(
+                m_board_sizes.offset.x + m_board_sizes.grid_square / 2
+                + static_cast<float>(m_game.current_pos()->x) * m_board_sizes.grid_square),
+            static_cast<int>(
+                m_board_sizes.offset.y + m_board_sizes.grid_square / 2
+                + static_cast<float>(m_game.current_pos()->y) * m_board_sizes.grid_square)
+        };
+        const float circle_radius = m_board_sizes.inner_square / 2;
+        DrawCircle(circle_pos.x, circle_pos.y, circle_radius, BLUE);
+    }
+
     [[nodiscard]] BoardSizes calc_board_sizes() const
     {
         const Vector2i screen_size { GetScreenWidth(), GetScreenHeight() };
-        const auto min_size = static_cast<float>(std::min(screen_size.x, screen_size.y));
+        const auto min_size = static_cast<float>(std::min(screen_size.x, std::max(1, screen_size.y - 100)));
         BoardSizes sizes {};
-        sizes.x_offset = (static_cast<float>(screen_size.x) - min_size) / 2.0f;
+        sizes.offset.x = (static_cast<float>(screen_size.x) - min_size) / 2.0f;
+        sizes.offset.y = 100.0f;
         sizes.grid_square = min_size / static_cast<float>(m_game.size());
         sizes.square_padding = 0.05f * sizes.grid_square;
         sizes.inner_square = min_size / static_cast<float>(m_game.size()) - 2 * sizes.square_padding;
@@ -134,12 +178,35 @@ private:
     {
         const raylib::Vector2 mouse_pos = GetMousePosition();
         if (const Vector2i grid_pos
-            = { static_cast<int>((mouse_pos.x - m_board_sizes.x_offset) / m_board_sizes.grid_square),
-                static_cast<int>(mouse_pos.y / m_board_sizes.grid_square) };
+            = { static_cast<int>((mouse_pos.x - m_board_sizes.offset.x) / m_board_sizes.grid_square),
+                static_cast<int>((mouse_pos.y - m_board_sizes.offset.y) / m_board_sizes.grid_square) };
             m_game.in_bounds(grid_pos)) {
             return grid_pos;
         }
-        return {};
+        return std::nullopt;
+    }
+
+    void handle_click()
+    {
+        auto in_diff_column = [this](const Vector2i pos) {
+            return pos.x == m_game.current_pos()->x && pos.y != m_game.current_pos()->y;
+        };
+        auto in_diff_row = [this](const Vector2i pos) {
+            return pos.x != m_game.current_pos()->x && pos.y == m_game.current_pos()->y;
+        };
+        if (const std::optional<Vector2i> grid_pos = mouse_to_grid(); grid_pos.has_value()) {
+            if (m_game.current_pos().has_value()) {
+                if (in_diff_column(*grid_pos)) {
+                    m_game.move(grid_pos->y > m_game.current_pos()->y ? Direction::south : Direction::north);
+                }
+                else if (in_diff_row(*grid_pos)) {
+                    m_game.move(grid_pos->x > m_game.current_pos()->x ? Direction::east : Direction::west);
+                }
+            }
+            else {
+                m_game.set_start(*grid_pos);
+            }
+        }
     }
 
     void update_manual()
@@ -153,25 +220,7 @@ private:
         }
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !m_game.result().has_value()) {
-            auto in_diff_column = [this](const Vector2i pos) {
-                return pos.x == m_game.current_pos()->x && pos.y != m_game.current_pos()->y;
-            };
-            auto in_diff_row = [this](const Vector2i pos) {
-                return pos.x != m_game.current_pos()->x && pos.y == m_game.current_pos()->y;
-            };
-            if (const std::optional<Vector2i> grid_pos = mouse_to_grid(); grid_pos.has_value()) {
-                if (m_game.current_pos().has_value()) {
-                    if (in_diff_column(*grid_pos)) {
-                        m_game.move(grid_pos->y > m_game.current_pos()->y ? Direction::south : Direction::north);
-                    }
-                    else if (in_diff_row(*grid_pos)) {
-                        m_game.move(grid_pos->x > m_game.current_pos()->x ? Direction::east : Direction::west);
-                    }
-                }
-                else {
-                    m_game.set_start(*grid_pos);
-                }
-            }
+            handle_click();
         }
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !m_game.start_pos().has_value()) {
