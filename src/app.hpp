@@ -18,6 +18,7 @@ public:
         , m_game(5)
         , m_board_sizes(calc_board_sizes())
         , m_state(GameState::manual)
+        , m_size_edit_mode(false)
     {
         constexpr int font_size = 16;
         m_ui_font = LoadFontFromMemory(
@@ -256,12 +257,15 @@ private:
             m_game.undo();
         }
         x_offset += 20.0f;
-        if (next_button("#120# Size")) {
-            set_game_size(m_game.size() - 1);
+        int size_spinner_value = m_game.size();
+        constexpr float size_spinner_width = 100.0f;
+        if (GuiSpinner({ x_offset, y_offset, size_spinner_width, button_size.y }, nullptr, &size_spinner_value, 1, 100, false)) {
+            m_size_edit_mode = !m_size_edit_mode;
         }
-        if (next_button("#121# Size")) {
-            set_game_size(m_game.size() + 1);
+        if (size_spinner_value != m_game.size()) {
+            set_game_size(size_spinner_value);
         }
+        x_offset += size_spinner_width + ui_padding;
         x_offset = ui_padding;
         y_offset += button_size.y + ui_padding;
         if (next_button("[Q] Quick Solve", 120.0f)) {
@@ -362,4 +366,5 @@ private:
     FullBoardGame m_game;
     BoardSizes m_board_sizes;
     GameState m_state;
+    bool m_size_edit_mode;
 };
