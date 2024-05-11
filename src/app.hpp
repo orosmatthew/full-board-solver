@@ -259,7 +259,13 @@ private:
         x_offset += 20.0f;
         int size_spinner_value = m_game.size();
         constexpr float size_spinner_width = 100.0f;
-        if (GuiSpinner({ x_offset, y_offset, size_spinner_width, button_size.y }, nullptr, &size_spinner_value, 1, 100, false)) {
+        if (GuiSpinner(
+                { x_offset, y_offset, size_spinner_width, button_size.y },
+                nullptr,
+                &size_spinner_value,
+                1,
+                100,
+                false)) {
             m_size_edit_mode = !m_size_edit_mode;
         }
         if (size_spinner_value != m_game.size()) {
@@ -303,10 +309,10 @@ private:
             m_state = GameState::solving;
         }
 
-        if (IsKeyPressed(KEY_UP)) {
+        if (IsKeyPressed(KEY_RIGHT)) {
             set_game_size(m_game.size() + 1);
         }
-        else if (IsKeyPressed(KEY_DOWN)) {
+        else if (IsKeyPressed(KEY_LEFT)) {
             set_game_size(m_game.size() - 1);
         }
     }
