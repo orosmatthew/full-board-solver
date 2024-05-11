@@ -341,7 +341,7 @@ private:
             if (m_game.move_history().empty()) {
                 const int i = m_game.pos_to_idx(m_game.start_pos().value());
                 m_game.reset_leave_barriers();
-                if (i >= m_game.size() * m_game.size()) {
+                if (i >= m_game.size() * m_game.size() - 1) {
                     m_state = GameState::manual;
                 }
                 else {
