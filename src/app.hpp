@@ -19,6 +19,7 @@ public:
         , m_board_sizes(calc_board_sizes())
         , m_state(GameState::manual)
         , m_size_edit_mode(false)
+        , m_draw_barriers(false)
     {
         constexpr int font_size = 16;
         m_ui_font = LoadFontFromMemory(
@@ -243,7 +244,7 @@ private:
                     { x_offset, y_offset, width.has_value() ? *width : button_size.x, button_size.y }, text.c_str())) {
                 pressed = true;
             }
-            x_offset += button_size.x + ui_padding;
+            x_offset += (width.has_value() ? *width : button_size.x) + ui_padding;
             return pressed;
         };
 
@@ -277,6 +278,8 @@ private:
         if (next_button("[Q] Quick Solve", 120.0f)) {
             m_state = GameState::solving;
         }
+        GuiCheckBox({ x_offset, y_offset, button_size.y, button_size.y }, "Draw Barrier", &m_draw_barriers);
+        x_offset += button_size.y + ui_padding;
     }
 
     void update_manual()
@@ -292,11 +295,18 @@ private:
             m_game.undo();
         }
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !m_game.result().has_value()) {
-            handle_click();
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            if (!m_game.result().has_value() && !m_draw_barriers) {
+                handle_click();
+            }
+            else if (m_draw_barriers) {
+                if (const std::optional<Vector2i> grid_pos = mouse_to_grid(); grid_pos.has_value()) {
+                    m_game.toggle_barrier(*grid_pos);
+                }
+            }
         }
 
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !m_game.start_pos().has_value()) {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             if (const std::optional<Vector2i> grid_pos = mouse_to_grid(); grid_pos.has_value()) {
                 m_game.toggle_barrier(*grid_pos);
             }
@@ -373,4 +383,5 @@ private:
     BoardSizes m_board_sizes;
     GameState m_state;
     bool m_size_edit_mode;
+    bool m_draw_barriers;
 };

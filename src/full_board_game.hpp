@@ -125,49 +125,26 @@ public:
             result.record = MoveRecord { .dir = dir, .from = start, .to = *m_current_pos };
             m_history.push_back(*result.record);
             m_result.reset();
-            bool full = true;
-            for (int i = 0; i < m_size * m_size; ++i) {
-                if (m_state[i] == BoardState::empty) {
-                    full = false;
-                    break;
-                }
-            }
-            if (full) {
-                result.game_result = Result::won;
-                m_result = Result::won;
-                return result;
-            }
-
-            bool trapped = true;
-            for (std::array<Vector2i, 4> neighbor_offsets { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
-                 const auto [off_x, off_y] : neighbor_offsets) {
-                if (const Vector2i neighbor_pos { m_current_pos->x + off_x, m_current_pos->y + off_y };
-                    in_bounds(neighbor_pos) && m_state[pos_to_idx(neighbor_pos)] == BoardState::empty) {
-                    trapped = false;
-                    break;
-                }
-            }
-            if (trapped) {
-                result.game_result = Result::lost;
-                m_result = Result::lost;
-                return result;
-            }
+            m_result = check_game_result();
+            result.game_result = m_result;
         }
         return result;
     }
 
     void set_barrier(const Vector2i pos, const bool value)
     {
+        const int idx = pos_to_idx(pos);
         if (value) {
-            if (std::ranges::find(m_barriers, pos) == m_barriers.end()) {
+            if (std::ranges::find(m_barriers, pos) == m_barriers.end() && m_state[idx] == BoardState::empty) {
                 m_barriers.push_back(pos);
                 m_state[pos_to_idx(pos)] = BoardState::filled;
             }
         }
-        else {
+        else if (std::ranges::find(m_barriers, pos) != m_barriers.end()) {
             m_state[pos_to_idx(pos)] = BoardState::empty;
             std::erase(m_barriers, pos);
         }
+        m_result = check_game_result();
     }
 
     [[nodiscard]] bool is_barrier(const Vector2i pos) const
@@ -217,6 +194,34 @@ public:
     [[nodiscard]] const std::vector<Vector2i>& barrier_positions() const
     {
         return m_barriers;
+    }
+
+    [[nodiscard]] std::optional<Result> check_game_result() const
+    {
+        bool full = true;
+        for (int i = 0; i < m_size * m_size; ++i) {
+            if (m_state[i] == BoardState::empty) {
+                full = false;
+                break;
+            }
+        }
+        if (full) {
+            return Result::won;
+        }
+
+        bool trapped = true;
+        for (std::array<Vector2i, 4> neighbor_offsets { { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } } };
+             const auto [off_x, off_y] : neighbor_offsets) {
+            if (const Vector2i neighbor_pos { m_current_pos->x + off_x, m_current_pos->y + off_y };
+                in_bounds(neighbor_pos) && m_state[pos_to_idx(neighbor_pos)] == BoardState::empty) {
+                trapped = false;
+                break;
+            }
+        }
+        if (trapped) {
+            return Result::lost;
+        }
+        return std::nullopt;
     }
 
 private:
