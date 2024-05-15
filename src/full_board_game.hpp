@@ -90,7 +90,7 @@ public:
 
     void set_start(Vector2i pos)
     {
-        if (m_history.empty() && !is_barrier(pos)) {
+        if (m_history.empty() && !barrier_at(pos)) {
             m_start_pos = pos;
             m_current_pos = pos;
             m_state[pos_to_idx(pos)] = BoardState::filled;
@@ -147,14 +147,14 @@ public:
         m_result = check_game_result();
     }
 
-    [[nodiscard]] bool is_barrier(const Vector2i pos) const
+    [[nodiscard]] bool barrier_at(const Vector2i pos) const
     {
         return std::ranges::find(m_barriers, pos) != m_barriers.end();
     }
 
     void toggle_barrier(const Vector2i pos)
     {
-        set_barrier(pos, !is_barrier(pos));
+        set_barrier(pos, !barrier_at(pos));
     }
 
     void reset()

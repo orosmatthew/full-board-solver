@@ -312,8 +312,8 @@ private:
             }
         }
 
-        if (IsKeyPressed(KEY_S) && m_game.current_pos().has_value()) {
-            solve_step(m_game);
+        if (IsKeyPressed(KEY_S)) {
+            auto_solve_update(m_game, std::nullopt);
         }
         if (IsKeyPressed(KEY_Q)) {
             m_state = GameState::solving;
@@ -329,40 +329,8 @@ private:
 
     void update_solving()
     {
-        auto next_pos = [&](const Vector2i prev) {
-            int i = m_game.pos_to_idx(prev);
-            while (i < m_game.size() * m_game.size()) {
-                i++;
-                if (std::ranges::find(m_game.barrier_positions(), m_game.idx_to_pos(i))
-                    == m_game.barrier_positions().end()) {
-                    break;
-                }
-            }
-            return m_game.idx_to_pos(i);
-        };
-        if (!m_game.start_pos().has_value()) {
-            const Vector2i next = next_pos(m_game.idx_to_pos(-1));
-            m_game.set_start(next);
-        }
-        const auto start_time = std::chrono::steady_clock::now();
-        const auto target_time = start_time + std::chrono::milliseconds(16);
-        do {
-            solve_step(m_game);
-            if (m_game.move_history().empty()) {
-                const int i = m_game.pos_to_idx(m_game.start_pos().value());
-                m_game.reset_leave_barriers();
-                if (i >= m_game.size() * m_game.size() - 1) {
-                    m_state = GameState::manual;
-                }
-                else {
-                    const Vector2i next = next_pos(*m_game.start_pos());
-                    m_game.set_start(next);
-                }
-            }
-        } while (!m_game.won() && m_game.start_pos().has_value() && std::chrono::steady_clock::now() < target_time);
-
-        if (IsKeyPressed(KEY_A)
-            || (m_game.result().has_value() && m_game.result().value() == FullBoardGame::Result::won)) {
+        if (IsKeyPressed(KEY_Q)
+            || auto_solve_update(m_game, std::chrono::milliseconds(16)) == AutoSolveResult::should_stop) {
             m_state = GameState::manual;
         }
     }
