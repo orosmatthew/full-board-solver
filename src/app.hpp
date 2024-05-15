@@ -21,16 +21,15 @@ public:
         , m_size_edit_mode(false)
         , m_draw_barriers(false)
     {
-        constexpr int font_size = 16;
         m_ui_font = LoadFontFromMemory(
             ".ttf",
             font_robot_regular_ttf_bin,
             static_cast<int>(font_robot_regular_ttf_bin_size),
-            font_size,
+            c_font_size,
             nullptr,
             0);
         GuiSetFont(m_ui_font);
-        GuiSetStyle(DEFAULT, TEXT_SIZE, font_size);
+        GuiSetStyle(DEFAULT, TEXT_SIZE, c_font_size);
     }
 
     [[nodiscard]] bool should_close() const
@@ -275,11 +274,16 @@ private:
         x_offset += size_spinner_width + ui_padding;
         x_offset = ui_padding;
         y_offset += button_size.y + ui_padding;
+        // Next row
+        const auto draw_barrier_text = "Draw Barrier";
+        GuiCheckBox({ x_offset, y_offset, button_size.y, button_size.y }, draw_barrier_text, &m_draw_barriers);
+        x_offset += button_size.y + text_width(draw_barrier_text) + ui_padding + 20.0f;
+        if (next_button("[S] Solve Step", 120.0f)) {
+            auto_solve_update(m_game, std::nullopt);
+        }
         if (next_button("[Q] Quick Solve", 120.0f)) {
             m_state = GameState::solving;
         }
-        GuiCheckBox({ x_offset, y_offset, button_size.y, button_size.y }, "Draw Barrier", &m_draw_barriers);
-        x_offset += button_size.y + ui_padding;
     }
 
     void update_manual()
@@ -344,6 +348,12 @@ private:
         }
     }
 
+    [[nodiscard]] float text_width(const std::string& text) const
+    {
+        return MeasureTextEx(m_ui_font, text.c_str(), c_font_size, 1.0f).x;
+    }
+
+    static constexpr int c_font_size = 16;
     static constexpr Vector2i c_init_window_size = { 800, 800 };
     RWindow m_window;
     RFont m_ui_font;
