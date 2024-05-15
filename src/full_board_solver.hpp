@@ -45,7 +45,7 @@ inline std::optional<Vector2i> first_avail_pos(const FullBoardGame& game)
 
 enum class AutoSolveResult { should_continue, should_stop };
 
-inline AutoSolveResult auto_solve_update(FullBoardGame& game, std::optional<std::chrono::milliseconds> solve_time)
+inline AutoSolveResult auto_solve_update(FullBoardGame& game, const std::optional<std::chrono::milliseconds> solve_time)
 {
     if (!game.start_pos().has_value()) {
         if (const std::optional<Vector2i> pos = first_avail_pos(game); pos.has_value()) {
